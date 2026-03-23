@@ -1,0 +1,17 @@
+.git
+.github
+.gitignore
+.env
+.env.local
+.idea
+.vscode
+.claude
+
+*.md
+!CLAUDE.md
+
+bin/
+pgdata/
+coverage.html
+*.test
+*.out

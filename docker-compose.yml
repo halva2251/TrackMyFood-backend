@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: trackmyfood
+      POSTGRES_PASSWORD: trackmyfood
+      POSTGRES_DB: trackmyfood
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trackmyfood"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://trackmyfood:trackmyfood@db:5432/trackmyfood?sslmode=disable
+      PORT: "8080"
+      ENVIRONMENT: development
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
