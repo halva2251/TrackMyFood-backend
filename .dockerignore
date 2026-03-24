@@ -6,6 +6,7 @@
 .idea
 .vscode
 .claude
+.claude-flow
 
 *.md
 !CLAUDE.md

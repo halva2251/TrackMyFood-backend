@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: trackmyfood
       POSTGRES_DB: trackmyfood
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,7 +18,7 @@ services:
   api:
     build: .
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8090:8080"
     environment:
       DATABASE_URL: postgres://trackmyfood:trackmyfood@db:5432/trackmyfood?sslmode=disable
       PORT: "8080"

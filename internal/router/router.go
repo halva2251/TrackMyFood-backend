@@ -9,6 +9,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/halva2251/trackmyfood-backend/internal/handler"
+	"github.com/halva2251/trackmyfood-backend/internal/repository"
+	"github.com/halva2251/trackmyfood-backend/internal/service"
 )
 
 func New(db *pgxpool.Pool) http.Handler {
@@ -26,15 +28,30 @@ func New(db *pgxpool.Pool) http.Handler {
 		MaxAge:           300,
 	}))
 
+	// Repos
+	scanRepo := repository.NewScanRepo(db)
+	tempRepo := repository.NewTemperatureRepo(db)
+	complaintRepo := repository.NewComplaintRepo(db)
+	recallRepo := repository.NewRecallRepo(db)
+
+	// Services
+	trustScoreSvc := service.NewTrustScoreService(db)
+
+	// Handlers
+	scanH := handler.NewScanHandler(scanRepo)
+	tempH := handler.NewTemperatureHandler(tempRepo)
+	complaintH := handler.NewComplaintHandler(complaintRepo, trustScoreSvc)
+	recallH := handler.NewRecallHandler(recallRepo)
+
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		handler.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
 	r.Route("/api", func(r chi.Router) {
-		// GET /api/scan/{barcode}
-		// GET /api/batch/{id}/temperature
-		// POST /api/complaints
-		// POST /api/admin/recalls
+		r.Get("/scan/{barcode}", scanH.Lookup)
+		r.Get("/batch/{id}/temperature", tempH.GetByBatch)
+		r.Post("/complaints", complaintH.Create)
+		r.Post("/admin/recalls", recallH.Create)
 	})
 
 	return r

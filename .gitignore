@@ -18,6 +18,8 @@ coverage.html
 # Environment
 .env
 .env.local
+.claude
+.claude-flow
 
 # IDE
 .idea/
