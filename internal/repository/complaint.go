@@ -5,16 +5,15 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/halva2251/trackmyfood-backend/internal/domain"
 )
 
 type ComplaintRepo struct {
-	db *pgxpool.Pool
+	db DBTX
 }
 
-func NewComplaintRepo(db *pgxpool.Pool) *ComplaintRepo {
+func NewComplaintRepo(db DBTX) *ComplaintRepo {
 	return &ComplaintRepo{db: db}
 }
 

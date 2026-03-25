@@ -18,12 +18,17 @@ type ScanLookup interface {
 	RecordScan(ctx context.Context, userID, batchID uuid.UUID) error
 }
 
-type ScanHandler struct {
-	repo ScanLookup
+type AnomalyDetector interface {
+	DetectAnomalies(ctx context.Context, batchID uuid.UUID) ([]domain.Anomaly, error)
 }
 
-func NewScanHandler(repo ScanLookup) *ScanHandler {
-	return &ScanHandler{repo: repo}
+type ScanHandler struct {
+	repo     ScanLookup
+	anomaly  AnomalyDetector
+}
+
+func NewScanHandler(repo ScanLookup, anomaly AnomalyDetector) *ScanHandler {
+	return &ScanHandler{repo: repo, anomaly: anomaly}
 }
 
 func (h *ScanHandler) Lookup(w http.ResponseWriter, r *http.Request) {
@@ -41,6 +46,15 @@ func (h *ScanHandler) Lookup(w http.ResponseWriter, r *http.Request) {
 		}
 		WriteError(w, http.StatusInternalServerError, "failed to look up product")
 		return
+	}
+
+	// Enrich with anomaly detection (best-effort, don't fail the response)
+	if batchID, err := uuid.Parse(resp.Batch.ID); err == nil {
+		if anomalies, err := h.anomaly.DetectAnomalies(r.Context(), batchID); err != nil {
+			slog.Error("failed to detect anomalies", "batch_id", batchID, "error", err)
+		} else {
+			resp.Anomalies = anomalies
+		}
 	}
 
 	// Record scan if user ID is provided

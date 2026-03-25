@@ -5,16 +5,15 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/halva2251/trackmyfood-backend/internal/domain"
 )
 
 type TemperatureRepo struct {
-	db *pgxpool.Pool
+	db DBTX
 }
 
-func NewTemperatureRepo(db *pgxpool.Pool) *TemperatureRepo {
+func NewTemperatureRepo(db DBTX) *TemperatureRepo {
 	return &TemperatureRepo{db: db}
 }
 

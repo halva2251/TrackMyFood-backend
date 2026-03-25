@@ -11,6 +11,7 @@ type ScanResponse struct {
 	Recall     *ScanRecall        `json:"recall"`
 	Certs      []ScanCertification `json:"certifications"`
 	Sustain    *ScanSustainability `json:"sustainability"`
+	Anomalies  []Anomaly           `json:"anomalies,omitempty"`
 }
 
 type ScanProduct struct {

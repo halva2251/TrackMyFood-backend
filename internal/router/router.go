@@ -33,12 +33,13 @@ func New(db *pgxpool.Pool) http.Handler {
 	tempRepo := repository.NewTemperatureRepo(db)
 	complaintRepo := repository.NewComplaintRepo(db)
 	recallRepo := repository.NewRecallRepo(db)
+	anomalyRepo := repository.NewAnomalyRepo(db)
 
 	// Services
 	trustScoreSvc := service.NewTrustScoreService(db)
 
 	// Handlers
-	scanH := handler.NewScanHandler(scanRepo)
+	scanH := handler.NewScanHandler(scanRepo, anomalyRepo)
 	tempH := handler.NewTemperatureHandler(tempRepo)
 	complaintH := handler.NewComplaintHandler(complaintRepo, trustScoreSvc)
 	recallH := handler.NewRecallHandler(recallRepo)

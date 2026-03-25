@@ -8,16 +8,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/halva2251/trackmyfood-backend/internal/domain"
 )
 
 type ScanRepo struct {
-	db *pgxpool.Pool
+	db DBTX
 }
 
-func NewScanRepo(db *pgxpool.Pool) *ScanRepo {
+func NewScanRepo(db DBTX) *ScanRepo {
 	return &ScanRepo{db: db}
 }
 

@@ -32,6 +32,12 @@ func (m *mockScanRepo) RecordScan(ctx context.Context, userID, batchID uuid.UUID
 	return nil
 }
 
+type mockAnomalyDetector struct{}
+
+func (m *mockAnomalyDetector) DetectAnomalies(_ context.Context, _ uuid.UUID) ([]domain.Anomaly, error) {
+	return nil, nil
+}
+
 func newScanRouter(h *handler.ScanHandler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Get("/api/scan/{barcode}", h.Lookup)
@@ -114,7 +120,7 @@ func TestScanHandler_Lookup(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := handler.NewScanHandler(tt.mock)
+			h := handler.NewScanHandler(tt.mock, &mockAnomalyDetector{})
 			r := newScanRouter(h)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/scan/"+tt.barcode, nil)
@@ -166,7 +172,7 @@ func TestScanHandler_Lookup_RecordsScan(t *testing.T) {
 		},
 	}
 
-	h := handler.NewScanHandler(mock)
+	h := handler.NewScanHandler(mock, &mockAnomalyDetector{})
 	r := newScanRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/scan/7610000000001", nil)
@@ -200,7 +206,7 @@ func TestScanHandler_Lookup_SkipsRecordOnInvalidUserID(t *testing.T) {
 		},
 	}
 
-	h := handler.NewScanHandler(mock)
+	h := handler.NewScanHandler(mock, &mockAnomalyDetector{})
 	r := newScanRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/scan/7610000000001", nil)

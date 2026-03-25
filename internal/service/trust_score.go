@@ -9,14 +9,21 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
-type TrustScoreService struct {
-	db *pgxpool.Pool
+// DBTX is the common interface satisfied by *pgxpool.Pool, pgx.Tx, and mocks.
+type DBTX interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-func NewTrustScoreService(db *pgxpool.Pool) *TrustScoreService {
+type TrustScoreService struct {
+	db DBTX
+}
+
+func NewTrustScoreService(db DBTX) *TrustScoreService {
 	return &TrustScoreService{db: db}
 }
 
