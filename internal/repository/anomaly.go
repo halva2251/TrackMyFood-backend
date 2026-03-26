@@ -123,6 +123,10 @@ func checkAnomaly(name string, batchVal, mean, stddev *float64, desc string) *do
 	zScore = math.Round(zScore*100) / 100
 	isAnomaly := math.Abs(zScore) > 2.0
 
+	if !isAnomaly {
+		return nil
+	}
+
 	return &domain.Anomaly{
 		MetricName:     name,
 		BatchValue:     math.Round(*batchVal*100) / 100,

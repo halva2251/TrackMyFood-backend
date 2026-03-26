@@ -28,7 +28,7 @@ func NewTrustScoreService(db DBTX) *TrustScoreService {
 }
 
 type subScoreEntry struct {
-	score  float64
+	score  *float64
 	weight float64
 }
 
@@ -66,10 +66,10 @@ func (s *TrustScoreService) Recalculate(ctx context.Context, batchID uuid.UUID) 
 		{handling, 0.10},
 	}
 
-	// Filter out entries with -1 (no data) and redistribute weights
+	// Filter out entries with nil (no data) and redistribute weights
 	var active []subScoreEntry
 	for _, e := range entries {
-		if e.score >= 0 {
+		if e.score != nil {
 			active = append(active, e)
 		}
 	}
@@ -81,7 +81,7 @@ func (s *TrustScoreService) Recalculate(ctx context.Context, batchID uuid.UUID) 
 			totalWeight += e.weight
 		}
 		for _, e := range active {
-			overall += e.score * (e.weight / totalWeight)
+			overall += *e.score * (e.weight / totalWeight)
 		}
 	}
 
@@ -100,11 +100,11 @@ func (s *TrustScoreService) Recalculate(ctx context.Context, batchID uuid.UUID) 
 	const update = `
 		UPDATE batches SET
 			trust_score = $2,
-			sub_score_cold_chain = CASE WHEN $3::decimal >= 0 THEN $3 ELSE NULL END,
-			sub_score_quality = CASE WHEN $4::decimal >= 0 THEN $4 ELSE NULL END,
-			sub_score_time_to_shelf = CASE WHEN $5::decimal >= 0 THEN $5 ELSE NULL END,
-			sub_score_producer = CASE WHEN $6::decimal >= 0 THEN $6 ELSE NULL END,
-			sub_score_handling = CASE WHEN $7::decimal >= 0 THEN $7 ELSE NULL END,
+			sub_score_cold_chain = $3,
+			sub_score_quality = $4,
+			sub_score_time_to_shelf = $5,
+			sub_score_producer = $6,
+			sub_score_handling = $7,
 			score_calculated_at = NOW()
 		WHERE id = $1
 	`
@@ -112,8 +112,10 @@ func (s *TrustScoreService) Recalculate(ctx context.Context, batchID uuid.UUID) 
 	return err
 }
 
-// calcColdChain: percentage of readings within acceptable range. Returns -1 if no data.
-func (s *TrustScoreService) calcColdChain(ctx context.Context, batchID uuid.UUID) (float64, error) {
+func ptr(v float64) *float64 { return &v }
+
+// calcColdChain: percentage of readings within acceptable range. Returns nil if no data.
+func (s *TrustScoreService) calcColdChain(ctx context.Context, batchID uuid.UUID) (*float64, error) {
 	const q = `
 		SELECT
 			COUNT(*) AS total,
@@ -123,16 +125,16 @@ func (s *TrustScoreService) calcColdChain(ctx context.Context, batchID uuid.UUID
 	`
 	var total, inRange int
 	if err := s.db.QueryRow(ctx, q, batchID).Scan(&total, &inRange); err != nil {
-		return 0, err
+		return nil, err
 	}
 	if total == 0 {
-		return -1, nil
+		return nil, nil
 	}
-	return math.Round(float64(inRange)/float64(total)*10000) / 100, nil
+	return ptr(math.Round(float64(inRange)/float64(total)*10000) / 100), nil
 }
 
-// calcQuality: ratio of passed checks to total checks. Returns -1 if no data.
-func (s *TrustScoreService) calcQuality(ctx context.Context, batchID uuid.UUID) (float64, error) {
+// calcQuality: ratio of passed checks to total checks. Returns nil if no data.
+func (s *TrustScoreService) calcQuality(ctx context.Context, batchID uuid.UUID) (*float64, error) {
 	const q = `
 		SELECT
 			COUNT(*) AS total,
@@ -142,16 +144,16 @@ func (s *TrustScoreService) calcQuality(ctx context.Context, batchID uuid.UUID) 
 	`
 	var total, passed int
 	if err := s.db.QueryRow(ctx, q, batchID).Scan(&total, &passed); err != nil {
-		return 0, err
+		return nil, err
 	}
 	if total == 0 {
-		return -1, nil
+		return nil, nil
 	}
-	return math.Round(float64(passed)/float64(total)*10000) / 100, nil
+	return ptr(math.Round(float64(passed)/float64(total)*10000) / 100), nil
 }
 
-// calcTimeToShelf: ratio of optimal hours to actual hours. Returns -1 if no data.
-func (s *TrustScoreService) calcTimeToShelf(ctx context.Context, batchID uuid.UUID) (float64, error) {
+// calcTimeToShelf: ratio of optimal hours to actual hours. Returns nil if no data.
+func (s *TrustScoreService) calcTimeToShelf(ctx context.Context, batchID uuid.UUID) (*float64, error) {
 	const q = `
 		SELECT b.production_date, p.optimal_shelf_hours,
 			(SELECT MAX(arrived_at) FROM journey_steps WHERE batch_id = b.id AND step_type = 'delivered') AS delivered_at
@@ -163,26 +165,26 @@ func (s *TrustScoreService) calcTimeToShelf(ctx context.Context, batchID uuid.UU
 	var optimalHours *int
 	var deliveredAt *time.Time
 	if err := s.db.QueryRow(ctx, q, batchID).Scan(&productionDate, &optimalHours, &deliveredAt); err != nil {
-		return 0, err
+		return nil, err
 	}
 	if optimalHours == nil || deliveredAt == nil || *optimalHours == 0 {
-		return -1, nil
+		return nil, nil
 	}
 
 	actualHours := deliveredAt.Sub(productionDate).Hours()
 	if actualHours <= 0 {
-		return 100, nil
+		return ptr(100), nil
 	}
 
 	ratio := float64(*optimalHours) / actualHours
 	if ratio > 1 {
 		ratio = 1
 	}
-	return math.Round(ratio * 10000) / 100, nil
+	return ptr(math.Round(ratio * 10000) / 100), nil
 }
 
-// calcProducerTrackRecord: based on complaint rate and recall history. Returns -1 if no data.
-func (s *TrustScoreService) calcProducerTrackRecord(ctx context.Context, batchID uuid.UUID) (float64, error) {
+// calcProducerTrackRecord: based on complaint rate and recall history. Returns nil if no data.
+func (s *TrustScoreService) calcProducerTrackRecord(ctx context.Context, batchID uuid.UUID) (*float64, error) {
 	const q = `
 		SELECT pr.id
 		FROM batches b
@@ -192,7 +194,7 @@ func (s *TrustScoreService) calcProducerTrackRecord(ctx context.Context, batchID
 	`
 	var producerID uuid.UUID
 	if err := s.db.QueryRow(ctx, q, batchID).Scan(&producerID); err != nil {
-		return 0, err
+		return nil, err
 	}
 
 	const statsQ = `
@@ -208,10 +210,10 @@ func (s *TrustScoreService) calcProducerTrackRecord(ctx context.Context, batchID
 	`
 	var totalBatches, totalRecalls, totalComplaints int
 	if err := s.db.QueryRow(ctx, statsQ, producerID).Scan(&totalBatches, &totalRecalls, &totalComplaints); err != nil {
-		return 0, err
+		return nil, err
 	}
 	if totalBatches == 0 {
-		return -1, nil
+		return nil, nil
 	}
 
 	// Start at 100, deduct for recalls and complaints
@@ -223,11 +225,11 @@ func (s *TrustScoreService) calcProducerTrackRecord(ctx context.Context, batchID
 	if score < 0 {
 		score = 0
 	}
-	return math.Round(score*100) / 100, nil
+	return ptr(math.Round(score*100) / 100), nil
 }
 
-// calcHandling: fewer handling steps = better. Returns -1 if no data.
-func (s *TrustScoreService) calcHandling(ctx context.Context, batchID uuid.UUID) (float64, error) {
+// calcHandling: fewer handling steps = better. Returns nil if no data.
+func (s *TrustScoreService) calcHandling(ctx context.Context, batchID uuid.UUID) (*float64, error) {
 	const q = `
 		SELECT COUNT(*) AS actual_steps, p.optimal_handling_steps
 		FROM journey_steps js
@@ -241,17 +243,23 @@ func (s *TrustScoreService) calcHandling(ctx context.Context, batchID uuid.UUID)
 	err := s.db.QueryRow(ctx, q, batchID).Scan(&actualSteps, &optimalSteps)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return -1, nil
+			return nil, nil
 		}
-		return 0, err
+		return nil, err
 	}
-	if optimalSteps == nil || *optimalSteps == 0 {
-		return -1, nil
+	if optimalSteps == nil {
+		return nil, nil
+	}
+	if *optimalSteps == 0 {
+		if actualSteps == 0 {
+			return ptr(100), nil
+		}
+		return ptr(0), nil
 	}
 
 	ratio := float64(*optimalSteps) / float64(actualSteps)
 	if ratio > 1 {
 		ratio = 1
 	}
-	return math.Round(ratio * 10000) / 100, nil
+	return ptr(math.Round(ratio * 10000) / 100), nil
 }

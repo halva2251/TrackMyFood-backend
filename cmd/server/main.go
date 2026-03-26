@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -43,7 +44,8 @@ func run() error {
 	}
 	slog.Info("connected to database")
 
-	handler := router.New(pool)
+	var wg sync.WaitGroup
+	handler := router.New(pool, &wg)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
@@ -74,5 +76,22 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	return srv.Shutdown(shutdownCtx)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("server shutdown error", "error", err)
+	}
+
+	// Wait for background tasks
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-shutdownCtx.Done():
+		slog.Warn("timeout waiting for background tasks")
+	}
+
+	return nil
 }

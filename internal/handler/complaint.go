@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,10 +24,11 @@ type ScoreRecalculator interface {
 type ComplaintHandler struct {
 	repo       ComplaintCreator
 	trustScore ScoreRecalculator
+	wg         *sync.WaitGroup
 }
 
-func NewComplaintHandler(repo ComplaintCreator, ts ScoreRecalculator) *ComplaintHandler {
-	return &ComplaintHandler{repo: repo, trustScore: ts}
+func NewComplaintHandler(repo ComplaintCreator, ts ScoreRecalculator, wg *sync.WaitGroup) *ComplaintHandler {
+	return &ComplaintHandler{repo: repo, trustScore: ts, wg: wg}
 }
 
 type CreateComplaintRequest struct {
@@ -82,7 +84,9 @@ func (h *ComplaintHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Async trust score recalculation
+	h.wg.Add(1)
 	go func() {
+		defer h.wg.Done()
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := h.trustScore.Recalculate(ctx, batchID); err != nil {

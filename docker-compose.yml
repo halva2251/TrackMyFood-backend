@@ -6,9 +6,11 @@ services:
       POSTGRES_PASSWORD: trackmyfood
       POSTGRES_DB: trackmyfood
     ports:
-      - "127.0.0.1:5433:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./migrations/001_schema.up.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./seed/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U trackmyfood"]
       interval: 2s
@@ -18,7 +20,7 @@ services:
   api:
     build: .
     ports:
-      - "127.0.0.1:8090:8080"
+      - "8090:8080"
     environment:
       DATABASE_URL: postgres://trackmyfood:trackmyfood@db:5432/trackmyfood?sslmode=disable
       PORT: "8080"

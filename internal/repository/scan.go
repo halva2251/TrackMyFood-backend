@@ -156,7 +156,7 @@ func (r *ScanRepo) getJourney(ctx context.Context, batchID uuid.UUID) ([]domain.
 	}
 	defer rows.Close()
 
-	var steps []domain.ScanJourneyStep
+	steps := make([]domain.ScanJourneyStep, 0)
 	for rows.Next() {
 		var s domain.ScanJourneyStep
 		var arrivedAt time.Time
@@ -204,7 +204,7 @@ func (r *ScanRepo) getCertifications(ctx context.Context, batchID uuid.UUID) ([]
 	}
 	defer rows.Close()
 
-	var certs []domain.ScanCertification
+	certs := make([]domain.ScanCertification, 0)
 	for rows.Next() {
 		var c domain.ScanCertification
 		var validUntil *time.Time

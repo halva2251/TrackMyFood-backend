@@ -32,7 +32,7 @@ func (r *RecallRepo) Create(ctx context.Context, recall domain.Recall) (domain.R
 }
 
 func (r *RecallRepo) ZeroBatchScore(ctx context.Context, batchID uuid.UUID) error {
-	const q = `UPDATE batches SET trust_score = 0, score_calculated_at = NOW() WHERE id = $1`
+	const q = `UPDATE batches SET trust_score = 0, sub_score_cold_chain = NULL, sub_score_quality = NULL, sub_score_time_to_shelf = NULL, sub_score_producer = NULL, sub_score_handling = NULL, score_calculated_at = NOW() WHERE id = $1`
 	_, err := r.db.Exec(ctx, q, batchID)
 	return err
 }

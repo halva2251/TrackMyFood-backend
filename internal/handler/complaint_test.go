@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -126,7 +127,7 @@ func TestComplaintHandler_Create(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			scorer := &mockScoreRecalculator{}
-			h := handler.NewComplaintHandler(tt.repo, scorer)
+			h := handler.NewComplaintHandler(tt.repo, scorer, &sync.WaitGroup{})
 
 			req := httptest.NewRequest(http.MethodPost, "/api/complaints", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")

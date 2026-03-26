@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -13,7 +14,7 @@ import (
 	"github.com/halva2251/trackmyfood-backend/internal/service"
 )
 
-func New(db *pgxpool.Pool) http.Handler {
+func New(db *pgxpool.Pool, wg *sync.WaitGroup) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
@@ -41,7 +42,7 @@ func New(db *pgxpool.Pool) http.Handler {
 	// Handlers
 	scanH := handler.NewScanHandler(scanRepo, anomalyRepo)
 	tempH := handler.NewTemperatureHandler(tempRepo)
-	complaintH := handler.NewComplaintHandler(complaintRepo, trustScoreSvc)
+	complaintH := handler.NewComplaintHandler(complaintRepo, trustScoreSvc, wg)
 	recallH := handler.NewRecallHandler(recallRepo)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
