@@ -31,6 +31,7 @@ vet:
 # Run migrations against local DB
 migrate:
 	psql "$(DATABASE_URL)" -f migrations/001_schema.up.sql
+	psql "$(DATABASE_URL)" -f migrations/002_user_auth.up.sql
 
 # Seed demo data
 seed:
@@ -38,8 +39,10 @@ seed:
 
 # Reset DB: drop + recreate + seed
 reset:
+	psql "$(DATABASE_URL)" -f migrations/002_user_auth.down.sql
 	psql "$(DATABASE_URL)" -f migrations/001_schema.down.sql
 	psql "$(DATABASE_URL)" -f migrations/001_schema.up.sql
+	psql "$(DATABASE_URL)" -f migrations/002_user_auth.up.sql
 	psql "$(DATABASE_URL)" -f seed/seed.sql
 
 # Docker compose up

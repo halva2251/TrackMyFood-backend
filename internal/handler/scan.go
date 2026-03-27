@@ -11,10 +11,11 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/halva2251/trackmyfood-backend/internal/domain"
+	"github.com/halva2251/trackmyfood-backend/internal/middleware"
 )
 
 type ScanLookup interface {
-	LookupByBarcode(ctx context.Context, barcode string) (*domain.ScanResponse, error)
+	LookupByBarcode(ctx context.Context, barcode, lot string) (*domain.ScanResponse, error)
 	RecordScan(ctx context.Context, userID, batchID uuid.UUID) error
 }
 
@@ -38,13 +39,15 @@ func (h *ScanHandler) Lookup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lot := r.URL.Query().Get("lot")
+
 	// Accept EAN-8 (8 digits), EAN-13 (13 digits), or alphanumeric QR codes (1–100 chars)
 	if !isValidBarcode(barcode) {
 		WriteError(w, http.StatusBadRequest, "invalid barcode format")
 		return
 	}
 
-	resp, err := h.repo.LookupByBarcode(r.Context(), barcode)
+	resp, err := h.repo.LookupByBarcode(r.Context(), barcode, lot)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			WriteError(w, http.StatusNotFound, "product not found")
@@ -63,13 +66,11 @@ func (h *ScanHandler) Lookup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Record scan if user ID is provided
-	if userIDStr := r.Header.Get("X-User-ID"); userIDStr != "" {
-		if userID, err := uuid.Parse(userIDStr); err == nil {
-			if batchID, err := uuid.Parse(resp.Batch.ID); err == nil {
-				if err := h.repo.RecordScan(r.Context(), userID, batchID); err != nil {
-					slog.Error("failed to record scan", "user_id", userID, "batch_id", batchID, "error", err)
-				}
+	// Record scan if user is authenticated (via Bearer token or X-User-ID header)
+	if userID, ok := middleware.UserIDFromContext(r.Context()); ok {
+		if batchID, err := uuid.Parse(resp.Batch.ID); err == nil {
+			if err := h.repo.RecordScan(r.Context(), userID, batchID); err != nil {
+				slog.Error("failed to record scan", "user_id", userID, "batch_id", batchID, "error", err)
 			}
 		}
 	}

@@ -3,8 +3,6 @@ package middleware
 import (
 	"log/slog"
 	"net/http"
-
-	"github.com/halva2251/trackmyfood-backend/internal/handler"
 )
 
 // AdminAuth returns middleware that validates the X-API-Key header against apiKey.
@@ -19,11 +17,11 @@ func AdminAuth(apiKey string) func(http.Handler) http.Handler {
 			}
 			key := r.Header.Get("X-API-Key")
 			if key == "" {
-				handler.WriteError(w, http.StatusUnauthorized, "missing API key")
+				writeAuthError(w, http.StatusUnauthorized, "missing API key")
 				return
 			}
 			if key != apiKey {
-				handler.WriteError(w, http.StatusForbidden, "invalid API key")
+				writeAuthError(w, http.StatusForbidden, "invalid API key")
 				return
 			}
 			next.ServeHTTP(w, r)

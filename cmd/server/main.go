@@ -41,6 +41,13 @@ func run() error {
 		return fmt.Errorf("ADMIN_API_KEY is required in production")
 	}
 
+	if cfg.IsProduction() && (cfg.JWTSecret == "" || cfg.JWTSecret == "dev-secret-change-in-production") {
+		return fmt.Errorf("JWT_SECRET must be set to a strong random value in production")
+	}
+	if len(cfg.JWTSecret) < 32 {
+		slog.Warn("JWT_SECRET is shorter than 32 bytes; use a cryptographically random value")
+	}
+
 	ctx := context.Background()
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)

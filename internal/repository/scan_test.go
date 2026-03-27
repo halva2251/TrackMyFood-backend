@@ -42,7 +42,7 @@ func TestScanRepo_LookupByBarcode_Found(t *testing.T) {
 
 	// 1. Main scan query
 	mock.ExpectQuery("SELECT").
-		WithArgs(barcode).
+		WithArgs(barcode, "").
 		WillReturnRows(pgxmock.NewRows(mainScanColumns).AddRow(
 			productID, "Organic Strawberries", "fruits", barcode,
 			producerID, "Bio Hof Thurgau", "Frauenfeld", "CH",
@@ -80,7 +80,7 @@ func TestScanRepo_LookupByBarcode_Found(t *testing.T) {
 			AddRow(&co2, &water, &transport))
 
 	repo := repository.NewScanRepo(mock)
-	resp, err := repo.LookupByBarcode(context.Background(), barcode)
+	resp, err := repo.LookupByBarcode(context.Background(), barcode, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -123,11 +123,11 @@ func TestScanRepo_LookupByBarcode_NotFound(t *testing.T) {
 
 	// Main query returns ErrNoRows
 	mock.ExpectQuery("SELECT").
-		WithArgs(barcode).
+		WithArgs(barcode, "").
 		WillReturnError(pgx.ErrNoRows)
 
 	repo := repository.NewScanRepo(mock)
-	_, err = repo.LookupByBarcode(context.Background(), barcode)
+	_, err = repo.LookupByBarcode(context.Background(), barcode, "")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -153,7 +153,7 @@ func TestScanRepo_LookupByBarcode_WithActiveRecall(t *testing.T) {
 
 	// 1. Main scan query
 	mock.ExpectQuery("SELECT").
-		WithArgs(barcode).
+		WithArgs(barcode, "").
 		WillReturnRows(pgxmock.NewRows(mainScanColumns).AddRow(
 			productID, "Natural Yogurt", "dairy", barcode,
 			producerID, "Swiss Dairy Co", "Bern", "CH",
@@ -185,7 +185,7 @@ func TestScanRepo_LookupByBarcode_WithActiveRecall(t *testing.T) {
 		WillReturnError(pgx.ErrNoRows)
 
 	repo := repository.NewScanRepo(mock)
-	resp, err := repo.LookupByBarcode(context.Background(), barcode)
+	resp, err := repo.LookupByBarcode(context.Background(), barcode, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestScanRepo_LookupByBarcode_NoJourneyNoCerts(t *testing.T) {
 
 	// 1. Main scan query
 	mock.ExpectQuery("SELECT").
-		WithArgs(barcode).
+		WithArgs(barcode, "").
 		WillReturnRows(pgxmock.NewRows(mainScanColumns).AddRow(
 			productID, "Mountain Flower Honey", "honey", barcode,
 			producerID, "Alpine Bees", "Interlaken", "CH",
@@ -248,7 +248,7 @@ func TestScanRepo_LookupByBarcode_NoJourneyNoCerts(t *testing.T) {
 		WillReturnError(pgx.ErrNoRows)
 
 	repo := repository.NewScanRepo(mock)
-	resp, err := repo.LookupByBarcode(context.Background(), barcode)
+	resp, err := repo.LookupByBarcode(context.Background(), barcode, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

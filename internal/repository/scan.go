@@ -45,7 +45,7 @@ type scanRow struct {
 	ScoreCalculatedAt    *time.Time
 }
 
-func (r *ScanRepo) LookupByBarcode(ctx context.Context, barcode string) (*domain.ScanResponse, error) {
+func (r *ScanRepo) LookupByBarcode(ctx context.Context, barcode, lot string) (*domain.ScanResponse, error) {
 	const q = `
 		SELECT
 			p.id, p.name, p.category, p.barcode,
@@ -58,12 +58,13 @@ func (r *ScanRepo) LookupByBarcode(ctx context.Context, barcode string) (*domain
 		JOIN producers pr ON pr.id = p.producer_id
 		JOIN batches b ON b.product_id = p.id
 		WHERE p.barcode = $1
+		  AND ($2 = '' OR b.lot_number = $2)
 		ORDER BY b.production_date DESC
 		LIMIT 1
 	`
 
 	var row scanRow
-	err := r.db.QueryRow(ctx, q, barcode).Scan(
+	err := r.db.QueryRow(ctx, q, barcode, lot).Scan(
 		&row.ProductID, &row.ProductName, &row.ProductCategory, &row.ProductBarcode,
 		&row.ProducerID, &row.ProducerName, &row.ProducerLocation, &row.ProducerCountry,
 		&row.BatchID, &row.LotNumber, &row.ProductionDate, &row.ExpiryDate,

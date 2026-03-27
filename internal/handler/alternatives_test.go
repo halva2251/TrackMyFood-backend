@@ -66,7 +66,7 @@ func TestAlternativesHandler_GetAlternatives(t *testing.T) {
 			name:    "success — two alternatives returned",
 			barcode: "7610000000001",
 			scanMock: &mockScanRepo{
-				lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+				lookupFunc: func(_ context.Context, _, _ string) (*domain.ScanResponse, error) {
 					return baseScanResp, nil
 				},
 			},
@@ -82,7 +82,7 @@ func TestAlternativesHandler_GetAlternatives(t *testing.T) {
 			name:    "success — no alternatives found",
 			barcode: "7610000000001",
 			scanMock: &mockScanRepo{
-				lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+				lookupFunc: func(_ context.Context, _, _ string) (*domain.ScanResponse, error) {
 					return baseScanResp, nil
 				},
 			},
@@ -98,7 +98,7 @@ func TestAlternativesHandler_GetAlternatives(t *testing.T) {
 			name:    "product not found",
 			barcode: "9999999999999",
 			scanMock: &mockScanRepo{
-				lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+				lookupFunc: func(_ context.Context, _, _ string) (*domain.ScanResponse, error) {
 					return nil, pgx.ErrNoRows
 				},
 			},
@@ -110,7 +110,7 @@ func TestAlternativesHandler_GetAlternatives(t *testing.T) {
 			name:    "scan internal error",
 			barcode: "7610000000001",
 			scanMock: &mockScanRepo{
-				lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+				lookupFunc: func(_ context.Context, _, _ string) (*domain.ScanResponse, error) {
 					return nil, fmt.Errorf("db failure")
 				},
 			},
@@ -122,7 +122,7 @@ func TestAlternativesHandler_GetAlternatives(t *testing.T) {
 			name:    "alternatives query error",
 			barcode: "7610000000001",
 			scanMock: &mockScanRepo{
-				lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+				lookupFunc: func(_ context.Context, _, _ string) (*domain.ScanResponse, error) {
 					return baseScanResp, nil
 				},
 			},

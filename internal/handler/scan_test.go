@@ -14,15 +14,16 @@ import (
 
 	"github.com/halva2251/trackmyfood-backend/internal/domain"
 	"github.com/halva2251/trackmyfood-backend/internal/handler"
+	appmiddleware "github.com/halva2251/trackmyfood-backend/internal/middleware"
 )
 
 type mockScanRepo struct {
-	lookupFunc     func(ctx context.Context, barcode string) (*domain.ScanResponse, error)
+	lookupFunc     func(ctx context.Context, barcode, lot string) (*domain.ScanResponse, error)
 	recordScanFunc func(ctx context.Context, userID, batchID uuid.UUID) error
 }
 
-func (m *mockScanRepo) LookupByBarcode(ctx context.Context, barcode string) (*domain.ScanResponse, error) {
-	return m.lookupFunc(ctx, barcode)
+func (m *mockScanRepo) LookupByBarcode(ctx context.Context, barcode, lot string) (*domain.ScanResponse, error) {
+	return m.lookupFunc(ctx, barcode, lot)
 }
 
 func (m *mockScanRepo) RecordScan(ctx context.Context, userID, batchID uuid.UUID) error {
@@ -85,7 +86,7 @@ func TestScanHandler_Lookup(t *testing.T) {
 			name:    "success",
 			barcode: "7610000000001",
 			mock: &mockScanRepo{
-				lookupFunc: func(_ context.Context, barcode string) (*domain.ScanResponse, error) {
+				lookupFunc: func(_ context.Context, barcode, _ string) (*domain.ScanResponse, error) {
 					if barcode == "7610000000001" {
 						return scanResp, nil
 					}
@@ -98,7 +99,7 @@ func TestScanHandler_Lookup(t *testing.T) {
 			name:    "not found",
 			barcode: "9999999999999",
 			mock: &mockScanRepo{
-				lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+				lookupFunc: func(_ context.Context, _, _ string) (*domain.ScanResponse, error) {
 					return nil, pgx.ErrNoRows
 				},
 			},
@@ -109,7 +110,7 @@ func TestScanHandler_Lookup(t *testing.T) {
 			name:    "internal error",
 			barcode: "7610000000001",
 			mock: &mockScanRepo{
-				lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+				lookupFunc: func(_ context.Context, _, _ string) (*domain.ScanResponse, error) {
 					return nil, fmt.Errorf("db connection failed")
 				},
 			},
@@ -120,7 +121,7 @@ func TestScanHandler_Lookup(t *testing.T) {
 			name:    "barcode too long (101 chars)",
 			barcode: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"[:101], // 101 'a'
 			mock: &mockScanRepo{
-				lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+				lookupFunc: func(_ context.Context, _, _ string) (*domain.ScanResponse, error) {
 					return nil, nil
 				},
 			},
@@ -131,7 +132,7 @@ func TestScanHandler_Lookup(t *testing.T) {
 			name:    "barcode with invalid characters",
 			barcode: "abc<script>",
 			mock: &mockScanRepo{
-				lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+				lookupFunc: func(_ context.Context, _, _ string) (*domain.ScanResponse, error) {
 					return nil, nil
 				},
 			},
@@ -142,7 +143,7 @@ func TestScanHandler_Lookup(t *testing.T) {
 			name:    "valid alphanumeric QR code",
 			barcode: "QR-2026-ABC123",
 			mock: &mockScanRepo{
-				lookupFunc: func(_ context.Context, barcode string) (*domain.ScanResponse, error) {
+				lookupFunc: func(_ context.Context, barcode, _ string) (*domain.ScanResponse, error) {
 					if barcode == "QR-2026-ABC123" {
 						return scanResp, nil
 					}
@@ -195,7 +196,7 @@ func TestScanHandler_Lookup_RecordsScan(t *testing.T) {
 	var recordedUserID, recordedBatchID uuid.UUID
 
 	mock := &mockScanRepo{
-		lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+		lookupFunc: func(_ context.Context, _, _ string) (*domain.ScanResponse, error) {
 			return &domain.ScanResponse{
 				Batch: domain.ScanBatch{ID: batchID.String()},
 			}, nil
@@ -211,7 +212,9 @@ func TestScanHandler_Lookup_RecordsScan(t *testing.T) {
 	r := newScanRouter(h)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/scan/7610000000001", nil)
-	req.Header.Set("X-User-ID", userID.String())
+	// Inject user ID into context (normally done by middleware)
+	ctx := context.WithValue(req.Context(), appmiddleware.UserIDKey, userID)
+	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -227,10 +230,10 @@ func TestScanHandler_Lookup_RecordsScan(t *testing.T) {
 	}
 }
 
-func TestScanHandler_Lookup_SkipsRecordOnInvalidUserID(t *testing.T) {
+func TestScanHandler_Lookup_SkipsRecordWhenNoUserInContext(t *testing.T) {
 	var recorded bool
 	mock := &mockScanRepo{
-		lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+		lookupFunc: func(_ context.Context, _, _ string) (*domain.ScanResponse, error) {
 			return &domain.ScanResponse{
 				Batch: domain.ScanBatch{ID: uuid.New().String()},
 			}, nil
@@ -244,8 +247,8 @@ func TestScanHandler_Lookup_SkipsRecordOnInvalidUserID(t *testing.T) {
 	h := handler.NewScanHandler(mock, &mockAnomalyDetector{})
 	r := newScanRouter(h)
 
+	// No user ID in context — scan should not be recorded
 	req := httptest.NewRequest(http.MethodGet, "/api/scan/7610000000001", nil)
-	req.Header.Set("X-User-ID", "not-a-uuid")
 	w := httptest.NewRecorder()
 
 	r.ServeHTTP(w, req)
@@ -254,6 +257,6 @@ func TestScanHandler_Lookup_SkipsRecordOnInvalidUserID(t *testing.T) {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusOK)
 	}
 	if recorded {
-		t.Error("should not record scan for invalid user ID")
+		t.Error("should not record scan when no user in context")
 	}
 }

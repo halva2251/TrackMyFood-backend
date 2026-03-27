@@ -54,6 +54,8 @@ internal/
   handler/                    – HTTP handlers (thin: parse request → call repo → write JSON)
   repository/                 – all SQL queries live here
   service/trust_score.go      – trust score calculation engine
+  service/auth.go             – JWT token generation/validation, password hashing
+  middleware/                  – admin auth (API key) + user auth (JWT Bearer)
   router/                     – chi router setup + middleware
 migrations/                   – SQL schema (up/down)
 seed/                         – demo data for 4 scenarios
@@ -67,10 +69,16 @@ seed/                         – demo data for 4 scenarios
 
 ## Key Endpoints
 
-- `GET /api/scan/{barcode}` – main endpoint, returns everything in one call (product, batch, trust score, journey, recall, certs, sustainability)
+- `GET /api/scan/{barcode}` – main endpoint, returns everything in one call (product, batch, trust score, journey, recall, certs, sustainability). Optionally records scan if user is authenticated.
 - `GET /api/batch/{id}/temperature` – cold chain time-series
 - `POST /api/complaints` – file complaint, triggers async score recalc
 - `POST /api/admin/recalls` – create recall, zero score, return affected users
+- `POST /api/auth/register` – create user account (email, password, display_name)
+- `POST /api/auth/login` – authenticate, returns JWT access + refresh tokens
+- `POST /api/auth/refresh` – exchange refresh token for new token pair
+- `GET /api/user/me` – get authenticated user profile (requires Bearer token)
+- `GET /api/user/scan-history` – paginated scan history (requires Bearer token)
+- `DELETE /api/user/scan-history?id={id}` – delete a scan history entry
 
 ## Demo Barcodes
 
@@ -80,6 +88,7 @@ seed/                         – demo data for 4 scenarios
 | 7610000000002 | Atlantic Salmon (sketchy) | ~52 |
 | 7610000000003 | Natural Yogurt (recalled) | 0 |
 | 7610000000004 | Mountain Flower Honey (sustainable) | ~88 |
+| 7640150491001 | El Tony Mate 33cl (beverage) | ~92 |
 
 ---
 

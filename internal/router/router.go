@@ -33,7 +33,7 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   origins,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-User-ID", "X-API-Key"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-API-Key"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: false,
 		MaxAge:           300,
@@ -47,9 +47,11 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 	anomalyRepo := repository.NewAnomalyRepo(db)
 	producerRepo := repository.NewProducerRepo(db)
 	alternativesRepo := repository.NewAlternativesRepo(db)
+	userRepo := repository.NewUserRepo(db)
 
 	// Services
 	trustScoreSvc := service.NewTrustScoreService(db)
+	authSvc := service.NewAuthService(cfg.JWTSecret)
 
 	// Handlers
 	scanH := handler.NewScanHandler(scanRepo, anomalyRepo)
@@ -58,6 +60,7 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 	recallH := handler.NewRecallHandler(recallRepo)
 	producerH := handler.NewProducerHandler(producerRepo, trustScoreSvc, wg)
 	altH := handler.NewAlternativesHandler(scanRepo, alternativesRepo)
+	authH := handler.NewAuthHandler(userRepo, authSvc)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -71,10 +74,28 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 	})
 
 	r.Route("/api", func(r chi.Router) {
-		r.Get("/scan/{barcode}", scanH.Lookup)
-		r.Get("/scan/{barcode}/alternatives", altH.GetAlternatives)
+		// Public scan endpoints with optional auth for recording scans
+		r.Group(func(r chi.Router) {
+			r.Use(appmiddleware.OptionalUserAuth(authSvc))
+			r.Get("/scan/{barcode}", scanH.Lookup)
+			r.Get("/scan/{barcode}/alternatives", altH.GetAlternatives)
+		})
+
 		r.Get("/batch/{id}/temperature", tempH.GetByBatch)
 		r.Post("/complaints", complaintH.Create)
+
+		// Auth endpoints (public)
+		r.Post("/auth/register", authH.Register)
+		r.Post("/auth/login", authH.Login)
+		r.Post("/auth/refresh", authH.Refresh)
+
+		// Authenticated user endpoints
+		r.Route("/user", func(r chi.Router) {
+			r.Use(appmiddleware.UserAuth(authSvc))
+			r.Get("/me", authH.Me)
+			r.Get("/scan-history", authH.ScanHistory)
+			r.Delete("/scan-history", authH.DeleteScanHistoryEntry)
+		})
 
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(appmiddleware.AdminAuth(cfg.AdminAPIKey))

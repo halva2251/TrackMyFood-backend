@@ -8,7 +8,8 @@ INSERT INTO producers (id, name, location, country) VALUES
   ('00000000-0000-0000-0000-000000000001', 'Bio Hof Thurgau',     'Frauenfeld, Thurgau',  'CH'),
   ('00000000-0000-0000-0000-000000000002', 'Nordic Fish AS',       'Bergen, Hordaland',    'NO'),
   ('00000000-0000-0000-0000-000000000003', 'Alpina Dairy GmbH',   'Luzern, Zentralschweiz','CH'),
-  ('00000000-0000-0000-0000-000000000004', 'Imkerei Sonnenberg',  'Appenzell, Appenzell',  'CH');
+  ('00000000-0000-0000-0000-000000000004', 'Imkerei Sonnenberg',  'Appenzell, Appenzell',  'CH'),
+  ('00000000-0000-0000-0000-000000000005', 'El Tony Mate',        'Lucerne, Lucerne',      'CH');
 
 -- ============================================================
 -- PRODUCTS
@@ -17,7 +18,8 @@ INSERT INTO products (id, producer_id, name, category, barcode, min_temp_celsius
   ('00000000-0000-0000-0001-000000000001', '00000000-0000-0000-0000-000000000001', 'Organic Strawberries 500g',  'fruits',  '7610000000001', 1.0, 4.0,  24, 3),
   ('00000000-0000-0000-0001-000000000002', '00000000-0000-0000-0000-000000000002', 'Atlantic Salmon Fillet 300g','seafood', '7610000000002', 0.0, 4.0,  48, 3),
   ('00000000-0000-0000-0001-000000000003', '00000000-0000-0000-0000-000000000003', 'Natural Yogurt 500g',       'dairy',   '7610000000003', 2.0, 6.0,  72, 3),
-  ('00000000-0000-0000-0001-000000000004', '00000000-0000-0000-0000-000000000004', 'Mountain Flower Honey 250g','honey',   '7610000000004', 10.0, 25.0, 720, 2);
+  ('00000000-0000-0000-0001-000000000004', '00000000-0000-0000-0000-000000000004', 'Mountain Flower Honey 250g','honey',   '7610000000004', 10.0, 25.0, 720, 2),
+  ('00000000-0000-0000-0001-000000000005', '00000000-0000-0000-0000-000000000005', 'El Tony Mate 33cl',         'beverages','7640150491001', 2.0, 25.0, 8760, 3);
 
 -- ============================================================
 -- BATCHES (trust scores pre-calculated)
@@ -37,7 +39,11 @@ INSERT INTO batches (id, product_id, lot_number, production_date, expiry_date, t
 
   -- Scenario 4: Sustainable choice (honey) ~88
   ('00000000-0000-0000-0002-000000000004', '00000000-0000-0000-0001-000000000004', 'LOT-2026-0301-D', '2026-03-01 08:00:00+01', '2027-03-01 23:59:59+01',
-   88.00, 100.00, 100.00, 95.00, 80.00, 100.00, '2026-03-02 10:00:00+01');
+   88.00, 100.00, 100.00, 95.00, 80.00, 100.00, '2026-03-02 10:00:00+01'),
+
+  -- Scenario 5: El Tony Mate (from photo)
+  ('00000000-0000-0000-0002-000000000005', '00000000-0000-0000-0001-000000000005', 'L2506347', '2025-05-18 16:38:00+01', '2027-05-18 23:59:59+01',
+   92.00, 100.00, 100.00, 85.00, 90.00, 80.00, '2025-05-19 10:00:00+01');
 
 -- ============================================================
 -- JOURNEY STEPS
@@ -67,6 +73,11 @@ INSERT INTO journey_steps (id, batch_id, step_order, step_type, location, latitu
 INSERT INTO journey_steps (id, batch_id, step_order, step_type, location, latitude, longitude, arrived_at, departed_at) VALUES
   (gen_random_uuid(), '00000000-0000-0000-0002-000000000004', 1, 'harvested',   'Imkerei Sonnenberg, Appenzell',47.3307, 9.4092, '2026-03-01 08:00:00+01', '2026-03-01 12:00:00+01'),
   (gen_random_uuid(), '00000000-0000-0000-0002-000000000004', 2, 'delivered',   'Hofladen Appenzell',           47.3312, 9.4088, '2026-03-01 14:00:00+01', NULL);
+
+-- Scenario 5: El Tony Mate
+INSERT INTO journey_steps (id, batch_id, step_order, step_type, location, latitude, longitude, arrived_at, departed_at) VALUES
+  (gen_random_uuid(), '00000000-0000-0000-0002-000000000005', 1, 'processed',   'El Tony Production, Lucerne',  47.0502, 8.3093, '2025-05-18 16:38:00+01', '2025-05-19 08:00:00+01'),
+  (gen_random_uuid(), '00000000-0000-0000-0002-000000000005', 2, 'delivered',   'Coop City St. Annahof, Zurich', 47.3735, 8.5385, '2025-05-20 09:00:00+01', NULL);
 
 -- ============================================================
 -- TEMPERATURE READINGS
@@ -207,9 +218,10 @@ INSERT INTO sustainability (id, batch_id, co2_kg, water_liters, transport_km) VA
 -- ============================================================
 -- USERS (demo accounts)
 -- ============================================================
-INSERT INTO users (id, email, display_name) VALUES
-  ('00000000-0000-0000-0004-000000000001', 'demo@trackmyfood.ch',    'Demo User'),
-  ('00000000-0000-0000-0004-000000000002', 'tester@trackmyfood.ch',  'Test User');
+-- password for both demo users is "demo123"
+INSERT INTO users (id, email, display_name, password_hash) VALUES
+  ('00000000-0000-0000-0004-000000000001', 'demo@trackmyfood.ch',    'Demo User',  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'),
+  ('00000000-0000-0000-0004-000000000002', 'tester@trackmyfood.ch',  'Test User',  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy');
 
 -- ============================================================
 -- SCAN HISTORY (User 2 scanned the yogurt — will be affected by recall)

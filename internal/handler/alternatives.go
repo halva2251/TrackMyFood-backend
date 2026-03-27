@@ -41,7 +41,7 @@ func (h *AlternativesHandler) GetAlternatives(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	scanResp, err := h.scan.LookupByBarcode(r.Context(), barcode)
+	scanResp, err := h.scan.LookupByBarcode(r.Context(), barcode, "")
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			WriteError(w, http.StatusNotFound, "product not found")
