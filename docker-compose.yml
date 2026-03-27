@@ -18,6 +18,7 @@ services:
       retries: 5
 
   api:
+    image: ghcr.io/halva2251/trackmyfood-backend:latest
     build: .
     ports:
       - "8090:8080"
