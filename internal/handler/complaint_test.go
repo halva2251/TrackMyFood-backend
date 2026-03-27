@@ -122,6 +122,38 @@ func TestComplaintHandler_Create(t *testing.T) {
 			wantStatus: http.StatusInternalServerError,
 			wantErr:    "failed to create complaint",
 		},
+		{
+			name:       "invalid photo_url — not a url",
+			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other","photo_url":"not-a-url"}`, batchID, userID),
+			repo:       successMock,
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "invalid photo_url",
+		},
+		{
+			name:       "invalid photo_url — non-http scheme",
+			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other","photo_url":"ftp://example.com/photo.jpg"}`, batchID, userID),
+			repo:       successMock,
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "photo_url must use http or https",
+		},
+		{
+			name:       "valid https photo_url",
+			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other","photo_url":"https://example.com/photo.jpg"}`, batchID, userID),
+			repo:       successMock,
+			wantStatus: http.StatusCreated,
+		},
+		{
+			name:       "valid http photo_url",
+			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other","photo_url":"http://example.com/photo.jpg"}`, batchID, userID),
+			repo:       successMock,
+			wantStatus: http.StatusCreated,
+		},
+		{
+			name:       "empty photo_url string — passes validation",
+			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other","photo_url":""}`, batchID, userID),
+			repo:       successMock,
+			wantStatus: http.StatusCreated,
+		},
 	}
 
 	for _, tt := range tests {

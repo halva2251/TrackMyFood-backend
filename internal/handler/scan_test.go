@@ -116,6 +116,41 @@ func TestScanHandler_Lookup(t *testing.T) {
 			wantStatus: http.StatusInternalServerError,
 			wantErr:    "failed to look up product",
 		},
+		{
+			name:    "barcode too long (101 chars)",
+			barcode: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"[:101], // 101 'a'
+			mock: &mockScanRepo{
+				lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+					return nil, nil
+				},
+			},
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "invalid barcode format",
+		},
+		{
+			name:    "barcode with invalid characters",
+			barcode: "abc<script>",
+			mock: &mockScanRepo{
+				lookupFunc: func(_ context.Context, _ string) (*domain.ScanResponse, error) {
+					return nil, nil
+				},
+			},
+			wantStatus: http.StatusBadRequest,
+			wantErr:    "invalid barcode format",
+		},
+		{
+			name:    "valid alphanumeric QR code",
+			barcode: "QR-2026-ABC123",
+			mock: &mockScanRepo{
+				lookupFunc: func(_ context.Context, barcode string) (*domain.ScanResponse, error) {
+					if barcode == "QR-2026-ABC123" {
+						return scanResp, nil
+					}
+					return nil, pgx.ErrNoRows
+				},
+			},
+			wantStatus: http.StatusOK,
+		},
 	}
 
 	for _, tt := range tests {

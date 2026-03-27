@@ -38,6 +38,12 @@ func (h *ScanHandler) Lookup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Accept EAN-8 (8 digits), EAN-13 (13 digits), or alphanumeric QR codes (1–100 chars)
+	if !isValidBarcode(barcode) {
+		WriteError(w, http.StatusBadRequest, "invalid barcode format")
+		return
+	}
+
 	resp, err := h.repo.LookupByBarcode(r.Context(), barcode)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -69,4 +75,18 @@ func (h *ScanHandler) Lookup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	WriteJSON(w, http.StatusOK, resp)
+}
+
+// isValidBarcode validates barcode/QR code input.
+// Accepts EAN-8, EAN-13 (digits only) or alphanumeric codes up to 100 chars.
+func isValidBarcode(s string) bool {
+	if len(s) == 0 || len(s) > 100 {
+		return false
+	}
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_') {
+			return false
+		}
+	}
+	return true
 }

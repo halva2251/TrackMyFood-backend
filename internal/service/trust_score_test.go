@@ -12,6 +12,150 @@ import (
 	"github.com/halva2251/trackmyfood-backend/internal/service"
 )
 
+func TestTrustScoreService_calcTimeToShelf_WithData(t *testing.T) {
+	batchID := uuid.New()
+	producerID := uuid.New()
+
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+
+	// Production 12h ago, delivered 12h ago, optimal=24h
+	// ratio = 24/12 = 2.0, capped at 1.0 → score = 100
+	now := time.Now().UTC()
+	productionDate := now.Add(-12 * time.Hour)
+	deliveredAt := now
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+
+	// Cold chain: 5 total, 5 in range
+	mock.ExpectQuery("SELECT").
+		WithArgs(batchID).
+		WillReturnRows(pgxmock.NewRows([]string{"total", "in_range"}).AddRow(5, 5))
+
+	// Quality: 2 total, 2 passed
+	mock.ExpectQuery("SELECT").
+		WithArgs(batchID).
+		WillReturnRows(pgxmock.NewRows([]string{"total", "passed"}).AddRow(2, 2))
+
+	// Time to shelf: production 12h ago, optimal 24h, delivered now
+	optimalHours := 24
+	mock.ExpectQuery("SELECT b.production_date").
+		WithArgs(batchID).
+		WillReturnRows(pgxmock.NewRows([]string{"production_date", "optimal_shelf_hours", "delivered_at"}).
+			AddRow(productionDate, &optimalHours, &deliveredAt))
+
+	// Producer track record: get producer ID
+	mock.ExpectQuery("SELECT pr.id").
+		WithArgs(batchID).
+		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(producerID))
+
+	// Producer stats
+	mock.ExpectQuery("SELECT").
+		WithArgs(producerID).
+		WillReturnRows(pgxmock.NewRows([]string{"total_batches", "total_recalls", "total_complaints"}).AddRow(3, 0, 0))
+
+	// Handling: 2 steps, optimal = 2
+	optSteps := 2
+	mock.ExpectQuery("SELECT COUNT").
+		WithArgs(batchID).
+		WillReturnRows(pgxmock.NewRows([]string{"actual_steps", "optimal_handling_steps"}).AddRow(2, &optSteps))
+
+	// No recall
+	mock.ExpectQuery("SELECT EXISTS").
+		WithArgs(batchID).
+		WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(false))
+
+	// Update — overall should be 100
+	mock.ExpectExec("UPDATE batches SET").
+		WithArgs(batchID, float64(100), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	mock.ExpectCommit()
+
+	svc := service.NewTrustScoreService(mock)
+	err = svc.Recalculate(context.Background(), batchID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
+}
+
+func TestTrustScoreService_PartialSubScores_WeightRedistributed(t *testing.T) {
+	batchID := uuid.New()
+	producerID := uuid.New()
+
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+
+	// Only cold chain and quality have data (time-to-shelf nil, producer nil, handling nil)
+	// Weights: cold_chain=0.30, quality=0.25 → total=0.55 → redistribute
+	// cold chain=100, quality=100 → overall should be 100
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("SELECT", 1))
+
+	// Cold chain: 10 total, 10 in range → 100
+	mock.ExpectQuery("SELECT").
+		WithArgs(batchID).
+		WillReturnRows(pgxmock.NewRows([]string{"total", "in_range"}).AddRow(10, 10))
+
+	// Quality: 4 total, 4 passed → 100
+	mock.ExpectQuery("SELECT").
+		WithArgs(batchID).
+		WillReturnRows(pgxmock.NewRows([]string{"total", "passed"}).AddRow(4, 4))
+
+	// Time to shelf: no data (nil optimalHours, nil deliveredAt)
+	mock.ExpectQuery("SELECT b.production_date").
+		WithArgs(batchID).
+		WillReturnRows(pgxmock.NewRows([]string{"production_date", "optimal_shelf_hours", "delivered_at"}).
+			AddRow(time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC), nil, nil))
+
+	// Producer: get ID
+	mock.ExpectQuery("SELECT pr.id").
+		WithArgs(batchID).
+		WillReturnRows(pgxmock.NewRows([]string{"id"}).AddRow(producerID))
+
+	// Producer stats: 0 batches → no data
+	mock.ExpectQuery("SELECT").
+		WithArgs(producerID).
+		WillReturnRows(pgxmock.NewRows([]string{"total_batches", "total_recalls", "total_complaints"}).AddRow(0, 0, 0))
+
+	// Handling: no rows
+	mock.ExpectQuery("SELECT COUNT").
+		WithArgs(batchID).
+		WillReturnError(pgx.ErrNoRows)
+
+	// No recall
+	mock.ExpectQuery("SELECT EXISTS").
+		WithArgs(batchID).
+		WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(false))
+
+	// Update — overall should be 100 (cold chain 100 + quality 100, weights redistributed)
+	mock.ExpectExec("UPDATE batches SET").
+		WithArgs(batchID, float64(100), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	mock.ExpectCommit()
+
+	svc := service.NewTrustScoreService(mock)
+	err = svc.Recalculate(context.Background(), batchID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Errorf("unmet expectations: %v", err)
+	}
+}
+
 func TestTrustScoreService_Recalculate(t *testing.T) {
 	batchID := uuid.New()
 	producerID := uuid.New()
@@ -22,6 +166,9 @@ func TestTrustScoreService_Recalculate(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer mock.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("SELECT", 1))
 
 		// Cold chain: 10 total, 10 in range → 100%
 		mock.ExpectQuery("SELECT").
@@ -66,6 +213,8 @@ func TestTrustScoreService_Recalculate(t *testing.T) {
 			WithArgs(batchID, pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
+		mock.ExpectCommit()
+
 		svc := service.NewTrustScoreService(mock)
 		err = svc.Recalculate(context.Background(), batchID)
 		if err != nil {
@@ -82,6 +231,9 @@ func TestTrustScoreService_Recalculate(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer mock.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("SELECT", 1))
 
 		// Cold chain: 10 total, 10 in range
 		mock.ExpectQuery("SELECT").
@@ -122,6 +274,8 @@ func TestTrustScoreService_Recalculate(t *testing.T) {
 			WithArgs(batchID, float64(0), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
+		mock.ExpectCommit()
+
 		svc := service.NewTrustScoreService(mock)
 		err = svc.Recalculate(context.Background(), batchID)
 		if err != nil {
@@ -138,6 +292,9 @@ func TestTrustScoreService_Recalculate(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer mock.Close()
+
+		mock.ExpectBegin()
+		mock.ExpectExec("SELECT pg_advisory_xact_lock").WithArgs(pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("SELECT", 1))
 
 		// Cold chain: 0 readings
 		mock.ExpectQuery("SELECT").
@@ -178,6 +335,8 @@ func TestTrustScoreService_Recalculate(t *testing.T) {
 		mock.ExpectExec("UPDATE batches SET").
 			WithArgs(batchID, float64(0), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).
 			WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+		mock.ExpectCommit()
 
 		svc := service.NewTrustScoreService(mock)
 		err = svc.Recalculate(context.Background(), batchID)

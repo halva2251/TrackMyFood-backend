@@ -31,9 +31,27 @@ func run() error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
+	if cfg.IsProduction() {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	} else {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	}
+
+	if cfg.IsProduction() && cfg.AdminAPIKey == "" {
+		return fmt.Errorf("ADMIN_API_KEY is required in production")
+	}
+
 	ctx := context.Background()
 
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		return fmt.Errorf("parse db config: %w", err)
+	}
+	poolCfg.MaxConns = cfg.DBMaxConns
+	poolCfg.MinConns = cfg.DBMinConns
+	poolCfg.MaxConnLifetime = 5 * time.Minute
+	poolCfg.MaxConnIdleTime = 2 * time.Minute
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		return fmt.Errorf("connect to database: %w", err)
 	}
@@ -45,7 +63,7 @@ func run() error {
 	slog.Info("connected to database")
 
 	var wg sync.WaitGroup
-	handler := router.New(pool, &wg)
+	handler := router.New(pool, &wg, cfg)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

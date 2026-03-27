@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
@@ -67,6 +68,19 @@ func (h *ComplaintHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if !validTypes[req.ComplaintType] {
 		WriteError(w, http.StatusBadRequest, "invalid complaint_type")
 		return
+	}
+
+	if req.PhotoURL != nil && *req.PhotoURL != "" {
+		if _, err := url.ParseRequestURI(*req.PhotoURL); err != nil {
+			WriteError(w, http.StatusBadRequest, "invalid photo_url")
+			return
+		}
+		// Must start with http/https
+		u, _ := url.Parse(*req.PhotoURL)
+		if u.Scheme != "http" && u.Scheme != "https" {
+			WriteError(w, http.StatusBadRequest, "photo_url must use http or https")
+			return
+		}
 	}
 
 	complaint := domain.Complaint{

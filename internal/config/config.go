@@ -7,10 +7,16 @@ import (
 )
 
 type Config struct {
-	DatabaseURL string `env:"DATABASE_URL,required"`
-	Port        string `env:"PORT" envDefault:"8080"`
-	Environment string `env:"ENVIRONMENT" envDefault:"development"`
+	DatabaseURL    string `env:"DATABASE_URL,required"`
+	Port           string `env:"PORT" envDefault:"8080"`
+	Environment    string `env:"ENVIRONMENT" envDefault:"development"`
+	AdminAPIKey    string `env:"ADMIN_API_KEY"`
+	AllowedOrigins string `env:"ALLOWED_ORIGINS" envDefault:"*"`
+	DBMaxConns     int32  `env:"DB_MAX_CONNS" envDefault:"25"`
+	DBMinConns     int32  `env:"DB_MIN_CONNS" envDefault:"5"`
 }
+
+func (c *Config) IsProduction() bool { return c.Environment == "production" }
 
 func Load() (*Config, error) {
 	cfg, err := env.ParseAs[Config]()
