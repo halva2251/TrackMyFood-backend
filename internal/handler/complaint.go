@@ -12,7 +12,16 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/halva2251/trackmyfood-backend/internal/domain"
+	"github.com/halva2251/trackmyfood-backend/internal/middleware"
 )
+
+var validComplaintTypes = map[string]bool{
+	"taste_smell":        true,
+	"packaging_damaged":  true,
+	"foreign_object":     true,
+	"suspected_spoilage": true,
+	"other":              true,
+}
 
 type ComplaintCreator interface {
 	Create(ctx context.Context, c domain.Complaint) (domain.Complaint, error)
@@ -34,7 +43,6 @@ func NewComplaintHandler(repo ComplaintCreator, ts ScoreRecalculator, wg *sync.W
 
 type CreateComplaintRequest struct {
 	BatchID       string  `json:"batch_id"`
-	UserID        string  `json:"user_id"`
 	ComplaintType string  `json:"complaint_type"`
 	Description   *string `json:"description,omitempty"`
 	PhotoURL      *string `json:"photo_url,omitempty"`
@@ -49,34 +57,29 @@ func (h *ComplaintHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		WriteError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+
 	batchID, err := uuid.Parse(req.BatchID)
 	if err != nil {
 		WriteError(w, http.StatusBadRequest, "invalid batch_id")
 		return
 	}
 
-	userID, err := uuid.Parse(req.UserID)
-	if err != nil {
-		WriteError(w, http.StatusBadRequest, "invalid user_id")
-		return
-	}
-
-	validTypes := map[string]bool{
-		"taste_smell": true, "packaging_damaged": true, "foreign_object": true,
-		"suspected_spoilage": true, "other": true,
-	}
-	if !validTypes[req.ComplaintType] {
+	if !validComplaintTypes[req.ComplaintType] {
 		WriteError(w, http.StatusBadRequest, "invalid complaint_type")
 		return
 	}
 
 	if req.PhotoURL != nil && *req.PhotoURL != "" {
-		if _, err := url.ParseRequestURI(*req.PhotoURL); err != nil {
+		u, err := url.ParseRequestURI(*req.PhotoURL)
+		if err != nil {
 			WriteError(w, http.StatusBadRequest, "invalid photo_url")
 			return
 		}
-		// Must start with http/https
-		u, _ := url.Parse(*req.PhotoURL)
 		if u.Scheme != "http" && u.Scheme != "https" {
 			WriteError(w, http.StatusBadRequest, "photo_url must use http or https")
 			return

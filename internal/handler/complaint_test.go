@@ -15,6 +15,7 @@ import (
 
 	"github.com/halva2251/trackmyfood-backend/internal/domain"
 	"github.com/halva2251/trackmyfood-backend/internal/handler"
+	"github.com/halva2251/trackmyfood-backend/internal/middleware"
 )
 
 type mockComplaintRepo struct {
@@ -34,6 +35,12 @@ func (m *mockScoreRecalculator) Recalculate(_ context.Context, _ uuid.UUID) erro
 	return nil
 }
 
+// withUserID injects user ID into request context, simulating UserAuth middleware.
+func withUserID(r *http.Request, userID uuid.UUID) *http.Request {
+	ctx := context.WithValue(r.Context(), middleware.UserIDKey, userID)
+	return r.WithContext(ctx)
+}
+
 func TestComplaintHandler_Create(t *testing.T) {
 	batchID := uuid.MustParse("00000000-0000-0000-0002-000000000001")
 	userID := uuid.MustParse("00000000-0000-0000-0004-000000000001")
@@ -50,108 +57,124 @@ func TestComplaintHandler_Create(t *testing.T) {
 		name       string
 		body       string
 		repo       *mockComplaintRepo
+		authed     bool
 		wantStatus int
 		wantErr    string
 	}{
 		{
 			name:       "success",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"taste_smell","description":"smells bad"}`, batchID, userID),
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"taste_smell","description":"smells bad"}`, batchID),
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusCreated,
 		},
 		{
 			name:       "all valid complaint types - packaging_damaged",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"packaging_damaged"}`, batchID, userID),
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"packaging_damaged"}`, batchID),
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusCreated,
 		},
 		{
 			name:       "all valid complaint types - foreign_object",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"foreign_object"}`, batchID, userID),
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"foreign_object"}`, batchID),
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusCreated,
 		},
 		{
 			name:       "all valid complaint types - suspected_spoilage",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"suspected_spoilage"}`, batchID, userID),
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"suspected_spoilage"}`, batchID),
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusCreated,
 		},
 		{
 			name:       "all valid complaint types - other",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other"}`, batchID, userID),
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"other"}`, batchID),
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusCreated,
+		},
+		{
+			name:       "unauthenticated",
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"other"}`, batchID),
+			repo:       successMock,
+			authed:     false,
+			wantStatus: http.StatusUnauthorized,
+			wantErr:    "authentication required",
 		},
 		{
 			name:       "invalid json",
 			body:       `{invalid`,
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusBadRequest,
 			wantErr:    "invalid request body",
 		},
 		{
 			name:       "invalid batch_id",
-			body:       fmt.Sprintf(`{"batch_id":"bad","user_id":"%s","complaint_type":"other"}`, userID),
+			body:       `{"batch_id":"bad","complaint_type":"other"}`,
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusBadRequest,
 			wantErr:    "invalid batch_id",
 		},
 		{
-			name:       "invalid user_id",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"bad","complaint_type":"other"}`, batchID),
-			repo:       successMock,
-			wantStatus: http.StatusBadRequest,
-			wantErr:    "invalid user_id",
-		},
-		{
 			name:       "invalid complaint type",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"invalid_type"}`, batchID, userID),
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"invalid_type"}`, batchID),
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusBadRequest,
 			wantErr:    "invalid complaint_type",
 		},
 		{
 			name: "repo error",
-			body: fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other"}`, batchID, userID),
+			body: fmt.Sprintf(`{"batch_id":"%s","complaint_type":"other"}`, batchID),
 			repo: &mockComplaintRepo{
 				createFunc: func(_ context.Context, _ domain.Complaint) (domain.Complaint, error) {
 					return domain.Complaint{}, fmt.Errorf("db error")
 				},
 			},
+			authed:     true,
 			wantStatus: http.StatusInternalServerError,
 			wantErr:    "failed to create complaint",
 		},
 		{
 			name:       "invalid photo_url — not a url",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other","photo_url":"not-a-url"}`, batchID, userID),
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"other","photo_url":"not-a-url"}`, batchID),
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusBadRequest,
 			wantErr:    "invalid photo_url",
 		},
 		{
 			name:       "invalid photo_url — non-http scheme",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other","photo_url":"ftp://example.com/photo.jpg"}`, batchID, userID),
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"other","photo_url":"ftp://example.com/photo.jpg"}`, batchID),
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusBadRequest,
 			wantErr:    "photo_url must use http or https",
 		},
 		{
 			name:       "valid https photo_url",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other","photo_url":"https://example.com/photo.jpg"}`, batchID, userID),
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"other","photo_url":"https://example.com/photo.jpg"}`, batchID),
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusCreated,
 		},
 		{
 			name:       "valid http photo_url",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other","photo_url":"http://example.com/photo.jpg"}`, batchID, userID),
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"other","photo_url":"http://example.com/photo.jpg"}`, batchID),
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusCreated,
 		},
 		{
 			name:       "empty photo_url string — passes validation",
-			body:       fmt.Sprintf(`{"batch_id":"%s","user_id":"%s","complaint_type":"other","photo_url":""}`, batchID, userID),
+			body:       fmt.Sprintf(`{"batch_id":"%s","complaint_type":"other","photo_url":""}`, batchID),
 			repo:       successMock,
+			authed:     true,
 			wantStatus: http.StatusCreated,
 		},
 	}
@@ -163,6 +186,9 @@ func TestComplaintHandler_Create(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/complaints", strings.NewReader(tt.body))
 			req.Header.Set("Content-Type", "application/json")
+			if tt.authed {
+				req = withUserID(req, userID)
+			}
 			w := httptest.NewRecorder()
 
 			h.Create(w, req)

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"log/slog"
 	"net/http"
 )
@@ -20,7 +21,7 @@ func AdminAuth(apiKey string) func(http.Handler) http.Handler {
 				writeAuthError(w, http.StatusUnauthorized, "missing API key")
 				return
 			}
-			if key != apiKey {
+			if subtle.ConstantTimeCompare([]byte(key), []byte(apiKey)) != 1 {
 				writeAuthError(w, http.StatusForbidden, "invalid API key")
 				return
 			}

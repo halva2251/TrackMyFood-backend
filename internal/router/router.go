@@ -82,7 +82,9 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 		})
 
 		r.Get("/batch/{id}/temperature", tempH.GetByBatch)
-		r.Post("/complaints", complaintH.Create)
+
+		// Complaints require authentication
+		r.With(appmiddleware.UserAuth(authSvc)).Post("/complaints", complaintH.Create)
 
 		// Auth endpoints (public)
 		r.Post("/auth/register", authH.Register)

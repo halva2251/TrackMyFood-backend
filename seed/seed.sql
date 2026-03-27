@@ -220,8 +220,8 @@ INSERT INTO sustainability (id, batch_id, co2_kg, water_liters, transport_km) VA
 -- ============================================================
 -- password for both demo users is "demo123"
 INSERT INTO users (id, email, display_name, password_hash) VALUES
-  ('00000000-0000-0000-0004-000000000001', 'demo@trackmyfood.ch',    'Demo User',  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'),
-  ('00000000-0000-0000-0004-000000000002', 'tester@trackmyfood.ch',  'Test User',  '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy');
+  ('00000000-0000-0000-0004-000000000001', 'demo@trackmyfood.ch',    'Demo User',  '$2a$10$CiRm4LcxQYX7jsCGog2skuVBVV9xtKb3t1cKKQiL72XZmae8iKPr6'),
+  ('00000000-0000-0000-0004-000000000002', 'tester@trackmyfood.ch',  'Test User',  '$2a$10$CiRm4LcxQYX7jsCGog2skuVBVV9xtKb3t1cKKQiL72XZmae8iKPr6');
 
 -- ============================================================
 -- SCAN HISTORY (User 2 scanned the yogurt — will be affected by recall)
