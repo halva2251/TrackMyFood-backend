@@ -17,7 +17,7 @@ cd "$DIR"
 
 # Start containers
 echo "Starting containers..."
-docker compose up -d
+docker-compose up -d
 
 echo ""
 echo "API is available at http://localhost:8090"
