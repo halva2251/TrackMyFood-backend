@@ -68,6 +68,7 @@ seed/                         – demo data for 4 scenarios
 ## Key Endpoints
 
 - `GET /api/scan/{barcode}` – main endpoint, returns everything in one call (product, batch, trust score, journey, recall, certs, sustainability)
+- `POST /api/scan/{barcode}/chat` – ask AI questions about this specific product batch
 - `GET /api/batch/{id}/temperature` – cold chain time-series
 - `POST /api/complaints` – file complaint, triggers async score recalc
 - `POST /api/admin/recalls` – create recall, zero score, return affected users

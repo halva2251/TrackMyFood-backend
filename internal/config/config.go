@@ -12,6 +12,7 @@ type Config struct {
 	Environment    string `env:"ENVIRONMENT" envDefault:"development"`
 	AdminAPIKey    string `env:"ADMIN_API_KEY"`
 	JWTSecret      string `env:"JWT_SECRET" envDefault:"dev-secret-change-in-production"`
+	GeminiAPIKey   string `env:"GEMINI_API_KEY"`
 	AllowedOrigins string `env:"ALLOWED_ORIGINS" envDefault:"*"`
 	DBMaxConns     int32  `env:"DB_MAX_CONNS" envDefault:"25"`
 	DBMinConns     int32  `env:"DB_MIN_CONNS" envDefault:"5"`

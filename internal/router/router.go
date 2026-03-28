@@ -52,6 +52,7 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 	// Services
 	trustScoreSvc := service.NewTrustScoreService(db)
 	authSvc := service.NewAuthService(cfg.JWTSecret)
+	chatSvc := service.NewChatService(cfg.GeminiAPIKey)
 
 	// Handlers
 	scanH := handler.NewScanHandler(scanRepo, anomalyRepo)
@@ -61,6 +62,7 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 	producerH := handler.NewProducerHandler(producerRepo, trustScoreSvc, wg)
 	altH := handler.NewAlternativesHandler(scanRepo, alternativesRepo)
 	authH := handler.NewAuthHandler(userRepo, authSvc)
+	chatH := handler.NewChatHandler(scanRepo, chatSvc)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -79,6 +81,7 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 			r.Use(appmiddleware.OptionalUserAuth(authSvc))
 			r.Get("/scan/{barcode}", scanH.Lookup)
 			r.Get("/scan/{barcode}/alternatives", altH.GetAlternatives)
+			r.Post("/scan/{barcode}/chat", chatH.Chat)
 		})
 
 		r.Get("/batch/{id}/temperature", tempH.GetByBatch)
