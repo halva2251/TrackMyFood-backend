@@ -10,7 +10,7 @@ import (
 
 func TestChatService_Ask_Fallback(t *testing.T) {
 	// Test without an API key to ensure the fallback logic works
-	svc := NewChatService("")
+	svc := NewChatService("", "")
 	scanData := &domain.ScanResponse{
 		Product: domain.ScanProduct{Name: "Mate"},
 		TrustScore: domain.ScanTrustScore{Overall: 88},

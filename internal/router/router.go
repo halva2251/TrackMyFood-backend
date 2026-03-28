@@ -52,7 +52,7 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 	// Services
 	trustScoreSvc := service.NewTrustScoreService(db)
 	authSvc := service.NewAuthService(cfg.JWTSecret)
-	chatSvc := service.NewChatService(cfg.GeminiAPIKey)
+	chatSvc := service.NewChatService(cfg.GroqAPIKey, cfg.GeminiAPIKey)
 
 	// Handlers
 	scanH := handler.NewScanHandler(scanRepo, anomalyRepo)
