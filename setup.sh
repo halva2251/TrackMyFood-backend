@@ -15,10 +15,21 @@ fi
 
 cd "$DIR"
 
-# Start containers
-echo "Starting containers..."
-docker-compose up -d
+# Ensure .env exists (use example if missing)
+if [ ! -f .env ]; then
+  echo "Creating .env from .env.example..."
+  cp .env.example .env
+fi
+
+# Stop old containers
+echo "Cleaning up old containers..."
+docker-compose down || true
+
+# Build and start containers
+# Using --build to force local compilation of your new AI code
+echo "Building and starting containers..."
+docker-compose up --build -d
 
 echo ""
 echo "API is available at http://localhost:8090"
-echo "Try: curl http://localhost:8090/api/scan/7610000000001"
+echo "Chat Test: curl -X POST http://localhost:8090/api/scan/7640150491001/chat -H 'Content-Type: application/json' -d '{\"question\": \"Is this safe?\"}'"
