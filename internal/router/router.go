@@ -48,6 +48,7 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 	producerRepo := repository.NewProducerRepo(db)
 	alternativesRepo := repository.NewAlternativesRepo(db)
 	userRepo := repository.NewUserRepo(db)
+	leaderboardRepo := repository.NewLeaderboardRepo(db)
 
 	// Services
 	trustScoreSvc := service.NewTrustScoreService(db)
@@ -63,6 +64,7 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 	altH := handler.NewAlternativesHandler(scanRepo, alternativesRepo)
 	authH := handler.NewAuthHandler(userRepo, authSvc)
 	chatH := handler.NewChatHandler(scanRepo, chatSvc)
+	leaderboardH := handler.NewLeaderboardHandler(leaderboardRepo)
 
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -85,6 +87,7 @@ func New(db *pgxpool.Pool, wg *sync.WaitGroup, cfg *config.Config) http.Handler 
 		})
 
 		r.Get("/batch/{id}/temperature", tempH.GetByBatch)
+		r.Get("/leaderboard", leaderboardH.Get)
 
 		// Complaints require authentication
 		r.With(appmiddleware.UserAuth(authSvc)).Post("/complaints", complaintH.Create)
